@@ -212,6 +212,9 @@ namespace UnityEngine.Rendering.Universal
             {
                 cameraWidth = (float)cameraData.cameraTargetDescriptor.width;
                 cameraHeight = (float)cameraData.cameraTargetDescriptor.height;
+#if UNITY_EDITOR || !UNITY_ANDROID
+                useRenderPassEnabled = false;
+#endif
             }
 
             if (camera.allowDynamicResolution)
