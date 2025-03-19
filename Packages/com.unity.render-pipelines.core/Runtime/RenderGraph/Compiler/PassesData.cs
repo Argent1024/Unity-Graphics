@@ -120,6 +120,8 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
         public bool fragmentInfoHasDepth;
         public bool insertGraphicsFence; // Whether this pass should insert a fence into the command buffer
 
+        public bool shaderResolvePass;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Name GetName(CompilerContextData ctx) => ctx.GetFullPassName(passId);
 
@@ -162,6 +164,8 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
             insertGraphicsFence = false;
             waitOnGraphicsFencePassId = -1;
+
+            shaderResolvePass = false;
         }
 
         // Helper func to reset and initialize existing PassData struct directly in a data container without costly deep copy (~120bytes) when adding it
@@ -205,6 +209,8 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
             insertGraphicsFence = false;
             waitOnGraphicsFencePassId = -1;
+
+            shaderResolvePass = pass.shaderResolvePass;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -533,6 +539,8 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
         public bool hasDepth;
         public bool hasFoveatedRasterization;
 
+        public bool shaderResolvePass;
+
         public NativePassData(ref PassData pass, CompilerContextData ctx)
         {
             firstGraphPass = pass.passId;
@@ -550,6 +558,7 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
             samples = pass.fragmentInfoSamples;
             hasDepth = pass.fragmentInfoHasDepth;
             hasFoveatedRasterization = pass.hasFoveatedRasterization;
+            shaderResolvePass = false;
 
             loadAudit = new FixedAttachmentArray<LoadAudit>();
             storeAudit = new FixedAttachmentArray<StoreAudit>();
@@ -1098,7 +1107,7 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
             nativePass.numGraphPasses++;
             nativePass.lastGraphPass = passIdToMerge;
-
+            nativePass.shaderResolvePass |= passToMerge.shaderResolvePass; // Might be some empty pass happening after post process pass
             // Depth needs special handling if the native pass doesn't have depth and merges with a pass that does
             // as we require the depth attachment to be at index 0
             if (!nativePass.hasDepth && passToMerge.fragmentInfoHasDepth)

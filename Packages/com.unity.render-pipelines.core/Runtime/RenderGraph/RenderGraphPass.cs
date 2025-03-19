@@ -58,6 +58,8 @@ namespace UnityEngine.Rendering.RenderGraphModule
 
         public List<ResourceHandle> implicitReadsList = new List<ResourceHandle>();
 
+        public bool shaderResolvePass;
+
         public RenderGraphPass()
         {
             for (int i = 0; i < (int)RenderGraphResourceType.Count; ++i)

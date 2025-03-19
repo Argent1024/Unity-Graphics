@@ -1144,6 +1144,11 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                     ref var currBeginAttachment = ref m_BeginRenderPassAttachments.ElementAt(i);
                     currBeginAttachment = new AttachmentDescriptor(renderTargetInfo.format);
 
+                    // In the memoryless case it's valid to not set both loadStoreTarget/and resolveTarget as the backend will allocate a transient one
+
+                    currBeginAttachment.loadAction = attachments[i].loadAction;
+                    currBeginAttachment.storeAction = attachments[i].storeAction;
+
                     // Set up the RT pointers
                     if (attachments[i].memoryless == false)
                     {
@@ -1160,16 +1165,17 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                         RenderTargetIdentifier rtidAllSlices = rtHandle;
                         currBeginAttachment.loadStoreTarget = new RenderTargetIdentifier(rtidAllSlices, attachments[i].mipLevel, CubemapFace.Unknown, attachments[i].depthSlice);
 
-                        if (attachments[i].storeAction == RenderBufferStoreAction.Resolve ||
-                            attachments[i].storeAction == RenderBufferStoreAction.StoreAndResolve)
+                        bool resolve = attachments[i].storeAction == RenderBufferStoreAction.Resolve ||
+                            attachments[i].storeAction == RenderBufferStoreAction.StoreAndResolve;
+                        if (nativePass.shaderResolvePass && resolve)
+                        {
+                            currBeginAttachment.storeAction = RenderBufferStoreAction.Store;
+                        }
+                        else if (resolve)
                         {
                             currBeginAttachment.resolveTarget = rtHandle;
                         }
                     }
-                    // In the memoryless case it's valid to not set both loadStoreTarget/and resolveTarget as the backend will allocate a transient one
-
-                    currBeginAttachment.loadAction = attachments[i].loadAction;
-                    currBeginAttachment.storeAction = attachments[i].storeAction;
 
                     // Set up clear colors if we have a clear load action
                     if (attachments[i].loadAction == RenderBufferLoadAction.Clear)

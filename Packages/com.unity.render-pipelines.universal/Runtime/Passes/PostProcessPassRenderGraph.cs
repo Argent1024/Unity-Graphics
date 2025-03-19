@@ -1884,6 +1884,7 @@ namespace UnityEngine.Rendering.Universal
                 
                 if (passMerged)
                 {
+                    builder.UseShaderResolve(true);
                     builder.SetInputAttachment(sourceTexture, index: 0, AccessFlags.Read);
                 }
                 else

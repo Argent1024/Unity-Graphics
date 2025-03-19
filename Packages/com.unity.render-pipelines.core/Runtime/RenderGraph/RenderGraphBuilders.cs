@@ -496,6 +496,11 @@ namespace UnityEngine.Rendering.RenderGraphModule
             return m_Resources.GetLatestVersionHandle(handle);
         }
 
+        public void UseShaderResolve(bool value)
+        {
+            m_RenderPass.shaderResolvePass = value;
+        }
+
         [Conditional("DEVELOPMENT_BUILD"), Conditional("UNITY_EDITOR")]
         void CheckResource(in ResourceHandle res, bool checkTransientReadWrite = false)
         {

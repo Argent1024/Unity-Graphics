@@ -335,5 +335,7 @@ namespace UnityEngine.Rendering.RenderGraphModule
         /// <param name="renderFunc">Render function for the pass.</param>
         public void SetRenderFunc<PassData>(BaseRenderFunc<PassData, RasterGraphContext> renderFunc)
             where PassData : class, new();
+
+        public void UseShaderResolve(bool value);
     }
 }
