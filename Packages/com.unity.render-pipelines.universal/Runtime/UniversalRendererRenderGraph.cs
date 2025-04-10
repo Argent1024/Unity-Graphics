@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal.Internal;
+using static UnityEngine.Rendering.Universal.UniversalResourceDataBase;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -291,12 +292,12 @@ namespace UnityEngine.Rendering.Universal
             requireColorTexture |= Application.isEditor && m_Clustering;
             requireColorTexture |= RequiresIntermediateColorTexture(cameraData, ref renderPassInputs);
 
-            var requireDepthTexture = RequireDepthTexture(cameraData, requiresDepthPrepass, ref renderPassInputs);
+            // Since y flip is fixed in the subpass usecase, we can ju
+            m_RequiresIntermediateDepth = RequireDepthTexture(cameraData, requiresDepthPrepass, ref renderPassInputs);
 
             useDepthPriming = IsDepthPrimingEnabled(cameraData);
 
-            // Intermediate texture has different yflip state than backbuffer. In case we use intermediate texture, we must use both color and depth together.
-            return (requireColorTexture || requireDepthTexture);
+            return (requireColorTexture || m_RequiresIntermediateDepth);
         }
 
         // Gather history render requests and manage camera history texture life-time.
@@ -434,6 +435,7 @@ namespace UnityEngine.Rendering.Universal
             // to pick the correct target, as if there is an intermediate texture, overlay cam should use them
             if (cameraData.renderType == CameraRenderType.Base)
                 m_RequiresIntermediateAttachments = RequiresIntermediateAttachments(cameraData, ref renderPassInputs);
+            
 
             // The final output back buffer should be cleared by the graph on first use only if we have no final blit pass.
             // If there is a final blit, that blit will write the buffers so on first sight an extra clear should not be problem,
@@ -442,6 +444,7 @@ namespace UnityEngine.Rendering.Universal
             // Finally for non-base cameras the backbuffer should never be cleared. (Note that there might still be two base cameras
             // rendering to the same screen. See e.g. test foundation 014 that renders a minimap)
             bool clearBackbufferOnFirstUse = (cameraData.renderType == CameraRenderType.Base) && !m_RequiresIntermediateAttachments;
+            bool clearDepthBufferOnFirstUse = (cameraData.renderType == CameraRenderType.Base) && !m_RequiresIntermediateDepth;
 
             // force the clear if we are rendering to an offscreen depth texture
             clearBackbufferOnFirstUse |= isCameraTargetOffscreenDepth;
@@ -462,7 +465,7 @@ namespace UnityEngine.Rendering.Universal
             importBackbufferColorParams.discardOnLastUse = noStoreOnlyResolveBBColor;
 
             ImportResourceParams importBackbufferDepthParams = new ImportResourceParams();
-            importBackbufferDepthParams.clearOnFirstUse = clearBackbufferOnFirstUse;
+            importBackbufferDepthParams.clearOnFirstUse = clearDepthBufferOnFirstUse;
             importBackbufferDepthParams.clearColor = cameraBackgroundColor;
             importBackbufferDepthParams.discardOnLastUse = !isCameraTargetOffscreenDepth;
 
@@ -615,7 +618,7 @@ namespace UnityEngine.Rendering.Universal
 
             bool depthTextureIsDepthFormat = RequireDepthPrepass(cameraData, ref renderPassInputs) && (renderingModeActual != RenderingMode.Deferred);
 
-            if (m_RequiresIntermediateAttachments)
+            if (m_RequiresIntermediateDepth)
             {
                 var depthDescriptor = cameraData.cameraTargetDescriptor;
                 depthDescriptor.useMipMap = false;
@@ -798,7 +801,7 @@ namespace UnityEngine.Rendering.Universal
 
             RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.BeforeRendering);
 
-            SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
+            SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer || resourceData.activeDepthID == ActiveID.BackBuffer);
 
 #if VISUAL_EFFECT_GRAPH_0_0_1_OR_NEWER
             ProcessVFXCameraCommand(renderGraph);
@@ -867,6 +870,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
         private static bool m_RequiresIntermediateAttachments;
+        private static bool m_RequiresIntermediateDepth;
 
         private void OnOffscreenDepthTextureRendering(RenderGraph renderGraph, ScriptableRenderContext context, UniversalResourceData resourceData, UniversalCameraData cameraData)
         {
@@ -908,13 +912,6 @@ namespace UnityEngine.Rendering.Universal
                 resourceData.additionalShadowsTexture = m_AdditionalLightsShadowCasterPass.Render(renderGraph, frameData);
             }
 
-            // The camera need to be setup again after the shadows since those passes override some settings
-            // TODO RENDERGRAPH: move the setup code into the shadow passes
-            if (renderShadows)
-                SetupRenderGraphCameraProperties(renderGraph, resourceData.isActiveTargetBackBuffer);
-
-            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows);
-
             bool requiredColorGradingLutPass = cameraData.postProcessEnabled && m_PostProcessPasses.isCreated;
             if (requiredColorGradingLutPass)
             {
@@ -922,6 +919,14 @@ namespace UnityEngine.Rendering.Universal
                 m_PostProcessPasses.colorGradingLutPass.Render(renderGraph, frameData, out internalColorLut);
                 resourceData.internalColorLut = internalColorLut;
             }
+
+            // The camera need to be setup again after the shadows since those passes override some settings
+            // TODO RENDERGRAPH: move the setup code into the shadow passes
+            // When using subpass, we need to call SetupRenderGraphCameraProperties before draw object pass
+            if (renderShadows || requiredColorGradingLutPass)
+                SetupRenderGraphCameraProperties(renderGraph,  resourceData.activeDepthID == ActiveID.BackBuffer || resourceData.activeDepthID == ActiveID.BackBuffer);
+
+            RecordCustomRenderGraphPasses(renderGraph, RenderPassEvent.AfterRenderingShadows);
         }
 
         private void UpdateInstanceOccluders(RenderGraph renderGraph, UniversalCameraData cameraData, TextureHandle depthTexture)
@@ -1650,7 +1655,7 @@ namespace UnityEngine.Rendering.Universal
                 // If we render to an intermediate depth attachment instead of the backbuffer, we need to copy the result to the backbuffer in cases where backbuffer
                 // depth data is required later in the frame.
                 bool backbufferDepthRequired = (cameraData.isSceneViewCamera || cameraData.isPreviewCamera || UnityEditor.Handles.ShouldRenderGizmos());
-                if (m_RequiresIntermediateAttachments && backbufferDepthRequired)
+                if (m_RequiresIntermediateDepth && backbufferDepthRequired)
                 {
                     m_FinalDepthCopyPass.MssaSamples = 0;
                     m_FinalDepthCopyPass.CopyToBackbuffer = cameraData.isGameCamera;
