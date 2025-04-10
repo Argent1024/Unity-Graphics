@@ -1498,6 +1498,7 @@ namespace UnityEngine.Rendering.Universal
             if (applyPostProcessing)
             {
                 TextureHandle activeColor = resourceData.activeColorTexture;
+                TextureHandle activeDepth = resourceData.activeDepthTexture;
                 TextureHandle backbuffer = resourceData.backBufferColor;
                 TextureHandle internalColorLut = resourceData.internalColorLut;
                 TextureHandle overlayUITexture = resourceData.overlayUITexture;
@@ -1534,7 +1535,7 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 bool doSRGBEncoding = resolvePostProcessingToCameraTarget && needsColorEncoding;
-                m_PostProcessPasses.postProcessPass.RenderPostProcessingRenderGraph(renderGraph, frameData, in activeColor, in internalColorLut, in overlayUITexture, in target, applyFinalPostProcessing, resolveToDebugScreen, doSRGBEncoding);
+                m_PostProcessPasses.postProcessPass.RenderPostProcessingRenderGraph(renderGraph, frameData, in activeColor, in activeDepth, in internalColorLut, in overlayUITexture, in target, applyFinalPostProcessing, resolveToDebugScreen, doSRGBEncoding);
 
                 // Handle any after-post rendering debugger overlays
                 if (cameraData.resolveFinalTarget)

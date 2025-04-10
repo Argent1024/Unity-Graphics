@@ -661,6 +661,7 @@ namespace UnityEngine.Rendering.Universal
                     renderGraph,
                     frameData,
                     activeColor,
+                    commonResourceData.activeDepthTexture,
                     commonResourceData.internalColorLut,
                     commonResourceData.overlayUITexture,
                     commonResourceData.activeColorTexture,

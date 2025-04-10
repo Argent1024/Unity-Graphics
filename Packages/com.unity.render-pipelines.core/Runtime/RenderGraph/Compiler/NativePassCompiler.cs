@@ -1167,13 +1167,15 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
                         bool resolve = attachments[i].storeAction == RenderBufferStoreAction.Resolve ||
                             attachments[i].storeAction == RenderBufferStoreAction.StoreAndResolve;
-                        if (nativePass.shaderResolvePass && resolve)
-                        {
-                            currBeginAttachment.storeAction = RenderBufferStoreAction.Store;
-                        }
-                        else if (resolve)
+
+                        if (resolve)
                         {
                             currBeginAttachment.resolveTarget = rtHandle;
+                            if (nativePass.shaderResolvePass)
+                            {
+                                currBeginAttachment.storeAction = RenderBufferStoreAction.Store;
+                                currBeginAttachment.loadStoreTarget = new RenderTargetIdentifier(BuiltinRenderTextureType.None);
+                            }
                         }
                     }
 
