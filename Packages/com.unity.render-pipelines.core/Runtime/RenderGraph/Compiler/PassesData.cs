@@ -540,6 +540,7 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
         public bool hasFoveatedRasterization;
 
         public bool shaderResolvePass;
+        public int shaderReoslveDepthIndex;
 
         public NativePassData(ref PassData pass, CompilerContextData ctx)
         {
@@ -559,6 +560,7 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
             hasDepth = pass.fragmentInfoHasDepth;
             hasFoveatedRasterization = pass.hasFoveatedRasterization;
             shaderResolvePass = false;
+            shaderReoslveDepthIndex = -1;
 
             loadAudit = new FixedAttachmentArray<LoadAudit>();
             storeAudit = new FixedAttachmentArray<StoreAudit>();
@@ -661,7 +663,7 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
                 // Easy early outs, different depth buffers we only allow a single depth for the whole NRP for now ?!?
                 // Depth buffer is by-design always at index 0
-                if (nativePass.hasDepth && passToMerge.fragmentInfoHasDepth)
+                if (nativePass.hasDepth && passToMerge.fragmentInfoHasDepth && !passToMerge.shaderResolvePass)
                 {
                     ref readonly var firstFragment = ref contextData.fragmentData.ElementAt(passToMerge.firstFragment);
                     if (nativePass.fragments[0].resource.index != firstFragment.resource.index)
@@ -913,7 +915,7 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
             // If depth ends up being bound only because of merging we explicitly say that we will not write to it
             // which could have been implied by leaving the flag to None
-            if (!passToMerge.fragmentInfoHasDepth && nativePass.hasDepth)
+            if ((!passToMerge.fragmentInfoHasDepth || passToMerge.shaderResolvePass) && nativePass.hasDepth)
             {
                 desc.flags = SubPassFlags.ReadOnlyDepth;
             }
@@ -949,6 +951,10 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                         }
                         Debug.Assert(colorAttachmentIdx >= 0); // If this is not the case it means we are using an attachment in a sub pass that is not part of the native pass !?!? clear bug
 
+                        if (nativePass.shaderResolvePass && nativePass.shaderReoslveDepthIndex != -1 && nativePass.shaderReoslveDepthIndex < colorAttachmentIdx) // Skip the shader resolve depth index
+                        {
+                            colorAttachmentIdx -= 1;
+                        }
                         // Set up the color indexes
                         desc.colorOutputs[fragmentIdx + colorOffset] = colorAttachmentIdx;
                     }
@@ -977,6 +983,14 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                     Debug.Assert(inputAttachmentIdx >= 0); // If this is not the case it means we are using an attachment in a sub pass that is not part of the native pass !?!? clear bug
 
                     // Set up the color indexes
+                    if (nativePass.shaderResolvePass && nativePass.shaderReoslveDepthIndex != -1) // Skip the shader resolve depth index
+                    {
+                        if (nativePass.shaderReoslveDepthIndex == inputAttachmentIdx)
+                            inputAttachmentIdx = 0; // when using depth input, should always be 0
+
+                        if (nativePass.shaderReoslveDepthIndex < inputAttachmentIdx)
+                            inputAttachmentIdx -= 1;
+                    }
                     desc.inputs[inputIndex] = inputAttachmentIdx;
 
                     inputIndex++;
@@ -1107,12 +1121,15 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
             nativePass.numGraphPasses++;
             nativePass.lastGraphPass = passIdToMerge;
-            nativePass.shaderResolvePass |= passToMerge.shaderResolvePass; // Might be some empty pass happening after post process pass
+            nativePass.shaderResolvePass |= passToMerge.shaderResolvePass; // Might be some empty pass happening after post process pass, TODO(QY): error if having two shader resolve pass
             // Depth needs special handling if the native pass doesn't have depth and merges with a pass that does
             // as we require the depth attachment to be at index 0
-            if (!nativePass.hasDepth && passToMerge.fragmentInfoHasDepth)
+            if ((!nativePass.hasDepth || passToMerge.shaderResolvePass )&& passToMerge.fragmentInfoHasDepth)
             {
                 nativePass.hasDepth = true;
+                if (passToMerge.shaderResolvePass) {
+                    nativePass.shaderReoslveDepthIndex = nativePass.fragments.size;
+                }
                 nativePass.fragments.Add(contextData.fragmentData[passToMerge.firstFragment]);
                 var size = nativePass.fragments.size;
                 if (size > 1)

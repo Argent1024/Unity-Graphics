@@ -176,12 +176,14 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                         // Depth attachment is always at index 0
                         if (inputPass.depthAccess.textureHandle.handle.IsValid())
                         {
+                            
                             ctxPass.fragmentInfoHasDepth = true;
 
                             if (ctx.AddToFragmentList(inputPass.depthAccess, ctxPass.firstFragment, ctxPass.numFragments))
                             {
                                 ctxPass.AddFragment(inputPass.depthAccess.textureHandle.handle, ctx);
                             }
+                            
                         }
 
                         for (var ci = 0; ci < inputPass.colorBufferMaxIndex + 1; ++ci)
@@ -1109,6 +1111,9 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
             {
                 ref var attachments = ref nativePass.attachments;
                 var attachmentCount = attachments.size;
+                if (nativePass.shaderReoslveDepthIndex != -1)
+                    attachmentCount -= 1;
+
 
                 ref readonly var firstGraphPass = ref contextData.passData.ElementAt(nativePass.firstGraphPass);
                 var w = firstGraphPass.fragmentInfoWidth;
@@ -1134,14 +1139,25 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
 
                 // Filling the attachments array to be sent to the rendering command buffer
                 m_BeginRenderPassAttachments.Resize(attachmentCount, NativeArrayOptions.UninitializedMemory);
-                for (var i = 0; i < attachmentCount; ++i)
+                for (var i = 0; i < attachments.size; ++i)
                 {
+
+                    int realIndex = nativePass.shaderReoslveDepthIndex != -1 && i > nativePass.shaderReoslveDepthIndex ? i - 1 : i;
+
                     ref var currAttachmentHandle = ref attachments[i].handle;
+
+                    if (i == nativePass.shaderReoslveDepthIndex) // Shader resolve depth target should happen after the "camera" depth
+                    {
+                        var rtHandle = resources.GetTexture(currAttachmentHandle.index);
+                        var shaderResolveDepthTarget = new RenderTargetIdentifier(rtHandle, attachments[i].mipLevel, CubemapFace.Unknown, attachments[i].depthSlice);
+                        m_BeginRenderPassAttachments.ElementAt(0).resolveTarget = shaderResolveDepthTarget;
+                        continue;
+                    }
 
                     resources.GetRenderTargetInfo(currAttachmentHandle, out var renderTargetInfo);
                     ValidateAttachmentRenderTarget(renderTargetInfo, resources, w, h, s);
 
-                    ref var currBeginAttachment = ref m_BeginRenderPassAttachments.ElementAt(i);
+                    ref var currBeginAttachment = ref m_BeginRenderPassAttachments.ElementAt(realIndex);
                     currBeginAttachment = new AttachmentDescriptor(renderTargetInfo.format);
 
                     // In the memoryless case it's valid to not set both loadStoreTarget/and resolveTarget as the backend will allocate a transient one
@@ -1171,7 +1187,8 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                         if (resolve)
                         {
                             currBeginAttachment.resolveTarget = rtHandle;
-                            if (nativePass.shaderResolvePass)
+                            // Shader resolve color attachment need to set loadStoreTarget to None 
+                            if (nativePass.shaderResolvePass && (!nativePass.hasDepth || i != 0))
                             {
                                 currBeginAttachment.storeAction = RenderBufferStoreAction.Store;
                                 currBeginAttachment.loadStoreTarget = new RenderTargetIdentifier(BuiltinRenderTextureType.None);

@@ -618,7 +618,7 @@ namespace UnityEngine.Rendering.Universal
 
             bool depthTextureIsDepthFormat = RequireDepthPrepass(cameraData, ref renderPassInputs) && (renderingModeActual != RenderingMode.Deferred);
 
-            if (m_RequiresIntermediateDepth)
+            if (m_RequiresIntermediateAttachments)
             {
                 var depthDescriptor = cameraData.cameraTargetDescriptor;
                 depthDescriptor.useMipMap = false;
@@ -1525,6 +1525,7 @@ namespace UnityEngine.Rendering.Universal
 
                 // Desired target for post-processing pass.
                 var target = isTargetBackbuffer ? backbuffer : resourceData.cameraColor;
+                var depthTarget = resourceData.backBufferDepth; // TODO(QY): set to none if we don't resolve
 
                 // but we may actually render to an intermediate texture if debug views are enabled.
                 // In that case, DebugHandler will eventually blit DebugScreenTexture into AfterPostProcessColor.
@@ -1535,7 +1536,7 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 bool doSRGBEncoding = resolvePostProcessingToCameraTarget && needsColorEncoding;
-                m_PostProcessPasses.postProcessPass.RenderPostProcessingRenderGraph(renderGraph, frameData, in activeColor, in activeDepth, in internalColorLut, in overlayUITexture, in target, applyFinalPostProcessing, resolveToDebugScreen, doSRGBEncoding);
+                m_PostProcessPasses.postProcessPass.RenderPostProcessingRenderGraph(renderGraph, frameData, in activeColor, in activeDepth, in internalColorLut, in overlayUITexture, in target, in depthTarget, applyFinalPostProcessing, resolveToDebugScreen, doSRGBEncoding);
 
                 // Handle any after-post rendering debugger overlays
                 if (cameraData.resolveFinalTarget)
@@ -1656,7 +1657,7 @@ namespace UnityEngine.Rendering.Universal
                 // If we render to an intermediate depth attachment instead of the backbuffer, we need to copy the result to the backbuffer in cases where backbuffer
                 // depth data is required later in the frame.
                 bool backbufferDepthRequired = (cameraData.isSceneViewCamera || cameraData.isPreviewCamera || UnityEditor.Handles.ShouldRenderGizmos());
-                if (m_RequiresIntermediateDepth && backbufferDepthRequired)
+                if (m_RequiresIntermediateAttachments && backbufferDepthRequired)
                 {
                     m_FinalDepthCopyPass.MssaSamples = 0;
                     m_FinalDepthCopyPass.CopyToBackbuffer = cameraData.isGameCamera;

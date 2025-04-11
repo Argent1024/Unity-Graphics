@@ -665,6 +665,7 @@ namespace UnityEngine.Rendering.Universal
                     commonResourceData.internalColorLut,
                     commonResourceData.overlayUITexture,
                     commonResourceData.activeColorTexture,
+                    commonResourceData.backBufferDepth,
                     applyFinalPostProcessing,
                     resolveToDebugScreen,
                     needsColorEncoding);
