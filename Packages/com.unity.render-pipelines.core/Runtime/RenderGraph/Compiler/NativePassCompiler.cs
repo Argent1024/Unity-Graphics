@@ -1173,8 +1173,17 @@ namespace UnityEngine.Rendering.RenderGraphModule.NativeRenderPassCompiler
                             currBeginAttachment.resolveTarget = rtHandle;
                             if (nativePass.shaderResolvePass)
                             {
-                                currBeginAttachment.storeAction = RenderBufferStoreAction.Store;
-                                currBeginAttachment.loadStoreTarget = new RenderTargetIdentifier(BuiltinRenderTextureType.None);
+                                if (i == 0 && nativePass.hasDepth)
+                                {
+                                    // Depth shader resolve need the load store target to be the same with resolve target. 
+                                    currBeginAttachment.storeAction = RenderBufferStoreAction.Resolve;
+                                }
+                                else
+                                {
+                                    // Set the load store target to None to enable shader resolve.
+                                    currBeginAttachment.storeAction = RenderBufferStoreAction.Store;
+                                    currBeginAttachment.loadStoreTarget = new RenderTargetIdentifier(BuiltinRenderTextureType.None);
+                                }
                             }
                         }
                     }
