@@ -16,6 +16,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma multi_compile_local_fragment _ HDR_INPUT HDR_ENCODING
 
         #pragma multi_compile_local_fragment _ SUBPASS_INPUT_ATTACHMENT
+        #pragma multi_compile_local_fragment _ SHADRE_RESOLVE_DEPTH
         #pragma multi_compile _ _MSAA_2 _MSAA_4 _MSAA_8
 
         #pragma dynamic_branch_local_fragment _ _HDR_OVERLAY
@@ -71,6 +72,19 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             #else
                 FRAMEBUFFER_INPUT_HALF_MS(urp_cameraColor);
             #endif
+        #if SHADRE_RESOLVE_DEPTH
+            #define urp_cameraDepth 1
+            FRAMEBUFFER_INPUT_FLOAT(urp_cameraDepth);
+
+            struct PS_OUT {
+                half4 color : SV_Target;
+                float depth : SV_DEPTH;
+            };
+        #else
+            struct PS_OUT {
+                half4 color : SV_Target;
+            };
+        #endif
         #endif
 
         float4 _BloomTexture_TexelSize;
@@ -166,8 +180,11 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             return uv;
         }
-
+        #if SUBPASS_INPUT_ATTACHMENT
+        PS_OUT FragUberPost(Varyings input)
+        #else
         half4 FragUberPost(Varyings input) : SV_Target
+        #endif
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
@@ -348,11 +365,23 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             }
             #endif
 
+            half4 outcolor;
             #if _ENABLE_ALPHA_OUTPUT
             // Saturate is necessary to avoid issues when additive blending pushes the alpha over 1.
-            return half4(color, saturate(inputColor.a));
+            outcolor = half4(color, saturate(inputColor.a));
             #else
-            return half4(color, 1);
+            outcolor = half4(color, 1);
+            #endif
+
+            #if SUBPASS_INPUT_ATTACHMENT
+            PS_OUT psout;
+            psout.color = outcolor;
+            #if SHADRE_RESOLVE_DEPTH
+            psout.depth = LOAD_FRAMEBUFFER_INPUT(urp_cameraDepth, float2(0,0));
+            #endif
+            return psout;
+            #else
+            return outcolor;
             #endif
         }
 
@@ -362,7 +391,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
     {
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline"}
         LOD 100
-        ZTest Always ZWrite Off Cull Off
+        ZTest Always ZWrite On Cull Off
         //ColorMask RGB
 
         Pass

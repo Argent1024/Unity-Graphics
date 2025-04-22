@@ -1959,6 +1959,7 @@ namespace UnityEngine.Rendering.Universal
                     CoreUtils.SetKeyword(material, ShaderKeywordStrings._ENABLE_ALPHA_OUTPUT, data.enableAlphaOutput);
 
                     CoreUtils.SetKeyword(material, "SUBPASS_INPUT_ATTACHMENT", data.isPassMerged);
+                    CoreUtils.SetKeyword(material, "SHADRE_RESOLVE_DEPTH", data.isPassMerged);
                     // Done with Uber, blit it
                     if (data.isPassMerged)
                     {
