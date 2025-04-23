@@ -74,7 +74,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             #endif
         #if SHADRE_RESOLVE_DEPTH
             #define urp_cameraDepth 1
-            FRAMEBUFFER_INPUT_FLOAT(urp_cameraDepth);
+            FRAMEBUFFER_INPUT_FLOAT_MS(urp_cameraDepth);
 
             struct PS_OUT {
                 half4 color : SV_Target;
@@ -377,7 +377,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             PS_OUT psout;
             psout.color = outcolor;
             #if SHADRE_RESOLVE_DEPTH
-            psout.depth = LOAD_FRAMEBUFFER_INPUT(urp_cameraDepth, float2(0,0));
+            psout.depth = LOAD_FRAMEBUFFER_INPUT_MS(urp_cameraDepth,0, float2(0,0));
             #endif
             return psout;
             #else
